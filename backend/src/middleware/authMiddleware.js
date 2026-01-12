@@ -1,27 +1,29 @@
-// backend/src/middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 
-// 1. Cek apakah dia punya Token (Login gak?)
+// 1. Cek Token
 exports.verifyToken = (req, res, next) => {
-    const token = req.headers['authorization']; // Ambil token dari header
+    const authHeader = req.headers['authorization']; 
+    
+    // PERBAIKAN DI SINI:
+    // Kita pisahkan string berdasarkan spasi: "Bearer" (index 0) dan "eyJ..." (index 1)
+    // Jika authHeader ada, kita ambil index ke-1.
+    const token = authHeader && authHeader.split(' ')[1]; 
 
     if (!token) {
-        return res.status(403).json({ message: "Akses Ditolak! Butuh Token." });
+        return res.status(403).json({ message: "Akses Ditolak! Token tidak ditemukan." });
     }
 
     try {
-        // Bongkar tokennya (Verify)
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded; // Simpan data user (id & role) ke request
-        next(); // Lanjut ke controller
+        req.user = decoded;
+        next();
     } catch (err) {
         return res.status(401).json({ message: "Token Tidak Valid!" });
     }
 };
 
-// 2. Cek apakah dia Admin
+// 2. Cek Admin (Ini sudah benar, tidak perlu diubah)
 exports.verifyAdmin = (req, res, next) => {
-    // req.user didapat dari verifyToken di atas
     if (req.user.role !== 'admin') {
         return res.status(403).json({ message: "Khusus Admin woy!" });
     }

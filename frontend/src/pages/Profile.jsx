@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, Camera, User } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Camera, User, LogOut } from 'lucide-react';
 
 const Profile = () => {
     const [user, setUser] = useState(null);
@@ -9,38 +9,58 @@ const Profile = () => {
     const [password, setPassword] = useState('');
     const [image, setImage] = useState(null);
     const [preview, setPreview] = useState(null);
+    const [loading, setLoading] = useState(true); 
     const navigate = useNavigate();
 
     useEffect(() => {
         getProfile();
     }, []);
 
-    // 1. Ambil Data Terbaru dari Backend
     const getProfile = async () => {
+        setLoading(true); // Mulai Loading
         try {
             const token = localStorage.getItem('token');
+            if (!token) {
+                navigate('/login');
+                return;
+            }
+
+            // Panggil API
             const response = await axios.get('http://localhost:5000/api/users/me', {
-                headers: { Authorization: token }
+                headers: { Authorization: `Bearer ${token}` } 
             });
+            
+            // Sukses! Simpan data
             setUser(response.data);
             setName(response.data.name);
-            setPreview(response.data.image);
+            setPreview(response.data.image); 
             
             // Update localStorage biar sinkron
             localStorage.setItem('user', JSON.stringify(response.data));
+
         } catch (error) {
             console.error("Gagal ambil profil", error);
+            
+            // LOGIKA PENTING: Kalau error 401/404 (Token basi), tendang keluar!
+            if (error.response && (error.response.status === 401 || error.response.status === 404 || error.response.status === 403)) {
+                alert("Sesi habis, silakan login ulang.");
+                localStorage.clear();
+                navigate('/login');
+            }
+        } finally {
+            // APAPUN YANG TERJADI (Sukses/Error), MATIKAN LOADING!
+            setLoading(false); 
         }
     };
 
-    // 2. Handle Ganti Foto (Preview)
     const handleImageChange = (e) => {
         const file = e.target.files[0];
-        setImage(file);
-        setPreview(URL.createObjectURL(file)); // Biar bisa diliat langsung
+        if (file) {
+            setImage(file);
+            setPreview(URL.createObjectURL(file));
+        }
     };
 
-    // 3. Simpan Perubahan
     const handleUpdate = async (e) => {
         e.preventDefault();
         const formData = new FormData();
@@ -51,28 +71,25 @@ const Profile = () => {
         try {
             const token = localStorage.getItem('token');
             await axios.put('http://localhost:5000/api/users/me', formData, {
-                headers: { 
-                    Authorization: token,
-                    'Content-Type': 'multipart/form-data'
-                }
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
             });
             alert("Profil Berhasil Diupdate!");
-            setPassword(''); // Kosongkan password field
-            getProfile(); // Refresh data
+            setPassword('');
+            getProfile(); // Refresh data biar gambar update
         } catch (error) {
+            console.error(error);
             alert("Gagal update profil");
         }
     };
 
-    // 4. Hapus Akun
     const handleDeleteAccount = async () => {
-        if (confirm("⚠️ PERINGATAN KERAS!\n\nApakah Anda yakin ingin menghapus akun ini selamanya? Data tidak bisa dikembalikan.")) {
+        if (confirm("⚠️ Yakin hapus akun? Data hilang selamanya!")) {
             try {
                 const token = localStorage.getItem('token');
                 await axios.delete('http://localhost:5000/api/users/me', {
-                    headers: { Authorization: token }
+                    headers: { Authorization: `Bearer ${token}` }
                 });
-                alert("Akun berhasil dihapus. Selamat tinggal!");
+                alert("Akun dihapus.");
                 localStorage.clear();
                 navigate('/');
             } catch (error) {
@@ -81,14 +98,26 @@ const Profile = () => {
         }
     };
 
-    if (!user) return <div style={{textAlign:'center', marginTop:'50px'}}>Loading...</div>;
+    // --- TAMPILAN SAAT LOADING ---
+    if (loading) return (
+        <div style={{textAlign:'center', marginTop:'100px', fontFamily:'sans-serif'}}>
+            <h3>Memuat Data...</h3>
+            {/* Tombol Darurat kalau macet */}
+            <button onClick={() => {localStorage.clear(); navigate('/login')}} style={{marginTop:'20px', color:'red', cursor:'pointer', border:'none', background:'none', textDecoration:'underline'}}>
+                Stuck? Klik di sini untuk Logout Paksa
+            </button>
+        </div>
+    );
+
+    // Kalau user masih null setelah loading selesai (berarti error parah), jangan crash
+    if (!user) return null;
 
     const isAdmin = user.role === 'admin';
+    const displayImage = preview || "https://cdn-icons-png.flaticon.com/512/847/847969.png"; 
 
     return (
         <div style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto', minHeight: '100vh', backgroundColor: '#f9fafb' }}>
             
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
                 <button onClick={() => navigate('/dashboard')} style={backBtnStyle}>
                     <ArrowLeft size={20} color="#333" />
@@ -97,12 +126,10 @@ const Profile = () => {
             </div>
 
             <div style={{ background: 'white', padding: '2rem', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
-                
-                {/* Bagian Foto Profil */}
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                     <div style={{ position: 'relative', width: '120px', height: '120px', margin: '0 auto' }}>
                         <img 
-                            src={preview || "https://via.placeholder.com/150"} 
+                            src={displayImage} 
                             alt="Profile" 
                             style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', border: '4px solid white', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
                         />
@@ -117,48 +144,28 @@ const Profile = () => {
                     </span>
                 </div>
 
-                {/* Form Update */}
                 <form onSubmit={handleUpdate} style={{ display: 'grid', gap: '1.5rem' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '0.9rem' }}>Nama Lengkap</label>
                         <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '10px' }}>
                             <User size={18} color="#999" style={{ marginRight: '10px' }}/>
-                            <input 
-                                type="text" 
-                                value={name} 
-                                onChange={(e) => setName(e.target.value)} 
-                                style={{ border: 'none', outline: 'none', width: '100%' }} 
-                            />
+                            <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={{ border: 'none', outline: 'none', width: '100%' }} />
                         </div>
                     </div>
-
                     <div>
                         <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '0.9rem' }}>Ganti Password (Opsional)</label>
-                        <input 
-                            type="password" 
-                            placeholder="******" 
-                            value={password} 
-                            onChange={(e) => setPassword(e.target.value)} 
-                            style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px' }} 
-                        />
+                        <input type="password" placeholder="******" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px' }} />
                     </div>
-
                     <button type="submit" style={{ background: '#1f2937', color: 'white', padding: '12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                         <Save size={18} /> SIMPAN PERUBAHAN
                     </button>
                 </form>
 
-                {/* Zona Bahaya */}
                 <div style={{ marginTop: '3rem', borderTop: '1px solid #eee', paddingTop: '2rem' }}>
-                    <h4 style={{ color: '#ef4444', marginBottom: '1rem' }}>Zona Bahaya</h4>
-                    <button 
-                        onClick={handleDeleteAccount}
-                        style={{ background: '#fee2e2', color: '#ef4444', width: '100%', padding: '12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                    >
+                    <button onClick={handleDeleteAccount} style={{ background: '#fee2e2', color: '#ef4444', width: '100%', padding: '12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                         <Trash2 size={18} /> HAPUS AKUN SAYA
                     </button>
                 </div>
-
             </div>
         </div>
     );

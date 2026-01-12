@@ -9,6 +9,7 @@ const ManageMenu = () => {
     
     // State Form
     const [name, setName] = useState('');
+    const [description, setDescription] = useState(''); 
     const [price, setPrice] = useState('');
     const [category, setCategory] = useState('food');
     const [image, setImage] = useState(null); 
@@ -21,15 +22,17 @@ const ManageMenu = () => {
     }, []);
 
     const getMenus = async () => {
-        const response = await axios.get('http://localhost:5000/api/menu');
-        setMenus(response.data);
+        try {
+            const response = await axios.get('http://localhost:5000/api/menu');
+            setMenus(response.data);
+        } catch (error) {
+            console.error("Gagal ambil data menu:", error);
+        }
     };
 
-    // --- LOGIKA GROUPING MENU ---
-    // Kita pisahkan array utama 'menus' menjadi 3 array kecil
     const foods = menus.filter(item => item.category === 'food');
     const drinks = menus.filter(item => item.category === 'drink');
-    const snacks = menus.filter(item => item.category === 'snack');
+    const snacks = menus.filter(item => item.category === 'snack'); 
 
     // --- HANDLE SUBMIT ---
     const handleSubmit = async (e) => {
@@ -37,16 +40,29 @@ const ManageMenu = () => {
         
         const formData = new FormData();
         formData.append('name', name);
+        formData.append('description', description); 
         formData.append('price', price);
         formData.append('category', category);
-        formData.append('description', 'Deskripsi default'); 
+        
         if (image) {
             formData.append('image', image);
         }
 
         try {
             const token = localStorage.getItem('token');
-            const config = { headers: { Authorization: token, 'Content-Type': 'multipart/form-data' } };
+            if (!token) {
+                alert("Anda belum login!");
+                return navigate('/login');
+            }
+
+            // --- PERBAIKAN DI SINI (TAMBAH BEARER) ---
+            const config = { 
+                headers: { 
+                    Authorization: `Bearer ${token}`, // <--- Wajib pakai Bearer
+                    'Content-Type': 'multipart/form-data' 
+                } 
+            };
+            // ----------------------------------------
 
             if (editId) {
                 await axios.put(`http://localhost:5000/api/menu/${editId}`, formData, config);
@@ -56,23 +72,25 @@ const ManageMenu = () => {
                 alert("Menu Berhasil Ditambahkan!");
             }
 
+            // Reset Form
             setName('');
+            setDescription(''); 
             setPrice('');
             setImage(null);
             setEditId(null);
-            // Reset input file secara manual
             document.getElementById('fileInput').value = ""; 
             getMenus(); 
 
         } catch (error) {
             console.error(error);
-            alert("Gagal menyimpan menu");
+            alert("Gagal menyimpan menu (Token Invalid atau Expired)");
         }
     };
 
     const handleEdit = (menu) => {
         setEditId(menu.id);
         setName(menu.name);
+        setDescription(menu.description || ''); 
         setPrice(menu.price);
         setCategory(menu.category);
         window.scrollTo(0,0);
@@ -82,9 +100,13 @@ const ManageMenu = () => {
         if (confirm("Yakin mau hapus menu ini?")) {
             try {
                 const token = localStorage.getItem('token');
+                
+                // --- PERBAIKAN DI SINI JUGA ---
                 await axios.delete(`http://localhost:5000/api/menu/${id}`, {
-                    headers: { Authorization: token }
+                    headers: { Authorization: `Bearer ${token}` } // <--- Pakai Bearer
                 });
+                // -----------------------------
+
                 getMenus();
             } catch (error) {
                 alert("Gagal hapus menu");
@@ -95,64 +117,35 @@ const ManageMenu = () => {
     const handleCancel = () => {
         setEditId(null);
         setName('');
+        setDescription(''); 
         setPrice('');
         setImage(null);
         document.getElementById('fileInput').value = "";
     };
 
-    // --- KOMPONEN KECIL BUAT NAMPILIN LIST (BIAR GAK ULANG KODINGAN) ---
+    // --- Component Section (Tidak Berubah) ---
     const MenuSection = ({ title, items, color, icon }) => (
         <div style={{ marginBottom: '3rem' }}>
-            <h3 style={{ 
-                color: color, 
-                borderBottom: `2px solid ${color}`, 
-                paddingBottom: '10px', 
-                marginBottom: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px'
-            }}>
+            <h3 style={{ color: color, borderBottom: `2px solid ${color}`, paddingBottom: '10px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {icon} {title} ({items.length})
             </h3>
-
             {items.length === 0 ? (
                 <p style={{ color: '#aaa', fontStyle: 'italic' }}>Belum ada menu di kategori ini.</p>
             ) : (
                 <div style={{ display: 'grid', gap: '1rem' }}>
                     {items.map((menu) => (
-                        <div key={menu.id} style={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center', 
-                            background: 'white', 
-                            padding: '1rem', 
-                            borderRadius: '8px', 
-                            boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                            borderLeft: `8px solid ${color}` // <--- INI WARNA PEMBEDANYA
-                        }}>
+                        <div key={menu.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '1rem', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', borderLeft: `8px solid ${color}` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                {/* Gambar */}
-                                <img 
-                                    src={menu.image || "https://placehold.co/50"} 
-                                    alt={menu.name} 
-                                    style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '5px', backgroundColor: '#eee' }} 
-                                />
+                                <img src={menu.image || "https://placehold.co/50"} alt={menu.name} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '5px', backgroundColor: '#eee' }} />
                                 <div>
                                     <strong style={{ fontSize: '1.1rem', display: 'block' }}>{menu.name}</strong>
-                                    <span style={{ fontSize: '0.9rem', color: '#666', fontWeight: 'bold' }}>
-                                        Rp {parseInt(menu.price).toLocaleString()}
-                                    </span>
+                                    <span style={{ fontSize: '0.85rem', color: '#888', display: 'block', fontStyle: 'italic', marginBottom: '4px' }}>{menu.description}</span>
+                                    <span style={{ fontSize: '0.9rem', color: '#333', fontWeight: 'bold' }}>Rp {parseInt(menu.price).toLocaleString()}</span>
                                 </div>
                             </div>
-                            
-                            {/* Tombol Aksi */}
                             <div style={{ display: 'flex', gap: '10px' }}>
-                                <button onClick={() => handleEdit(menu)} style={{ background: '#fff3cd', border: 'none', padding:'8px', borderRadius:'5px', cursor: 'pointer', color: '#f59e0b' }}>
-                                    <Edit size={18} />
-                                </button>
-                                <button onClick={() => handleDelete(menu.id)} style={{ background: '#fee2e2', border: 'none', padding:'8px', borderRadius:'5px', cursor: 'pointer', color: '#ef4444' }}>
-                                    <Trash2 size={18} />
-                                </button>
+                                <button onClick={() => handleEdit(menu)} style={{ background: '#fff3cd', border: 'none', padding:'8px', borderRadius:'5px', cursor: 'pointer', color: '#f59e0b' }}><Edit size={18} /></button>
+                                <button onClick={() => handleDelete(menu.id)} style={{ background: '#fee2e2', border: 'none', padding:'8px', borderRadius:'5px', cursor: 'pointer', color: '#ef4444' }}><Trash2 size={18} /></button>
                             </div>
                         </div>
                     ))}
@@ -163,30 +156,25 @@ const ManageMenu = () => {
 
     return (
         <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', paddingBottom: '100px' }}>
-            
-            {/* Header + Back */}
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem', gap: '1rem' }}>
-                <button onClick={() => navigate('/dashboard')} style={backButtonStyle}>
-                    <ArrowLeft size={20} color="#333" />
-                </button>
+                <button onClick={() => navigate('/dashboard')} style={backButtonStyle}><ArrowLeft size={20} color="#333" /></button>
                 <h2 style={{ color: '#e11d48', margin: 0 }}>Kelola Menu</h2>
             </div>
-
-            {/* FORM INPUT */}
             <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', marginBottom: '3rem' }}>
                 <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px', color: editId ? '#f59e0b' : '#e11d48' }}>
-                    {editId ? <Edit size={24}/> : <PlusCircle size={24}/>} 
-                    {editId ? 'Edit Menu' : 'Tambah Menu Baru'}
+                    {editId ? <Edit size={24}/> : <PlusCircle size={24}/>} {editId ? 'Edit Menu' : 'Tambah Menu Baru'}
                 </h3>
-                
                 <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem' }}>
                     <div style={{ display: 'grid', gap: '0.5rem' }}>
                         <label style={{fontWeight:'bold', fontSize:'0.9rem'}}>Nama Menu</label>
                         <input type="text" placeholder="Contoh: Pizza Pepperoni" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
                     </div>
-                    
-                    <div style={{ display: 'flex', gap: '1rem' }}>
-                        <div style={{ flex: 1, display: 'grid', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 2, minWidth: '200px', display: 'grid', gap: '0.5rem' }}>
+                            <label style={{fontWeight:'bold', fontSize:'0.9rem'}}>Deskripsi</label>
+                            <input type="text" placeholder="Penjelasan singkat..." value={description} onChange={(e) => setDescription(e.target.value)} style={inputStyle} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: '120px', display: 'grid', gap: '0.5rem' }}>
                             <label style={{fontWeight:'bold', fontSize:'0.9rem'}}>Harga (Rp)</label>
                             <input type="number" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} required style={inputStyle} />
                         </div>
@@ -199,58 +187,25 @@ const ManageMenu = () => {
                             </select>
                         </div>
                     </div>
-
-                    {/* Input Gambar */}
                     <div style={{ border: '2px dashed #ddd', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
                         <label style={{ display: 'block', marginBottom: '10px', cursor: 'pointer', color: '#555' }}>
-                            <ImageIcon size={24} style={{ display: 'block', margin: '0 auto 5px' }}/> 
-                            Klik untuk Upload Gambar
+                            <ImageIcon size={24} style={{ display: 'block', margin: '0 auto 5px' }}/> Klik untuk Upload Gambar
                         </label>
                         <input id="fileInput" type="file" onChange={(e) => setImage(e.target.files[0])} accept="image/*" style={{ width: '100%' }} />
                     </div>
-
                     <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
-                        <button type="submit" style={{ ...btnStyle, background: editId ? '#f59e0b' : '#e11d48', flex: 1 }}>
-                            {editId ? 'UPDATE MENU' : 'SIMPAN MENU'}
-                        </button>
-                        {editId && (
-                            <button type="button" onClick={handleCancel} style={{ ...btnStyle, background: '#6b7280' }}>
-                                BATAL
-                            </button>
-                        )}
+                        <button type="submit" style={{ ...btnStyle, background: editId ? '#f59e0b' : '#e11d48', flex: 1 }}>{editId ? 'UPDATE MENU' : 'SIMPAN MENU'}</button>
+                        {editId && (<button type="button" onClick={handleCancel} style={{ ...btnStyle, background: '#6b7280' }}>BATAL</button>)}
                     </div>
                 </form>
             </div>
-
-            {/* DAFTAR MENU PER KATEGORI */}
-            {/* Kita panggil komponen MenuSection 3 kali sesuai warna request */}
-            
-            <MenuSection 
-                title="Makanan" 
-                items={foods} 
-                color="#e11d48" // MERAH
-                icon={<Pizza />} 
-            />
-
-            <MenuSection 
-                title="Minuman" 
-                items={drinks} 
-                color="#3b82f6" // BIRU
-                icon={<Coffee />} 
-            />
-
-            <MenuSection 
-                title="Cemilan" 
-                items={snacks} 
-                color="#f97316" // ORANYE
-                icon={<Cookie />} 
-            />
-
+            <MenuSection title="Makanan" items={foods} color="#e11d48" icon={<Pizza />} />
+            <MenuSection title="Minuman" items={drinks} color="#3b82f6" icon={<Coffee />} />
+            <MenuSection title="Cemilan" items={snacks} color="#f97316" icon={<Cookie />} />
         </div>
     );
 };
 
-// Styles
 const inputStyle = { padding: '0.8rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem' };
 const btnStyle = { color: 'white', padding: '1rem', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' };
 const backButtonStyle = { background: 'white', border: '1px solid #ddd', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' };
