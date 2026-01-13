@@ -1,7 +1,9 @@
+// frontend/src/pages/Profile.jsx
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Trash2, Camera, User, LogOut } from 'lucide-react';
+// Tambahkan import icon baru: Key, Copy, Eye, EyeOff, Check
+import { ArrowLeft, Save, Trash2, Camera, User, LogOut, Key, Copy, Eye, EyeOff, Check } from 'lucide-react';
 
 const Profile = () => {
     const [user, setUser] = useState(null);
@@ -9,7 +11,12 @@ const Profile = () => {
     const [password, setPassword] = useState('');
     const [image, setImage] = useState(null);
     const [preview, setPreview] = useState(null);
-    const [loading, setLoading] = useState(true); 
+    const [loading, setLoading] = useState(true);
+    
+    // State buat fitur Token
+    const [showToken, setShowToken] = useState(false);
+    const [copied, setCopied] = useState(false);
+
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -17,7 +24,7 @@ const Profile = () => {
     }, []);
 
     const getProfile = async () => {
-        setLoading(true); // Mulai Loading
+        setLoading(true);
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -25,30 +32,24 @@ const Profile = () => {
                 return;
             }
 
-            // Panggil API
             const response = await axios.get('http://localhost:5000/api/users/me', {
                 headers: { Authorization: `Bearer ${token}` } 
             });
             
-            // Sukses! Simpan data
             setUser(response.data);
             setName(response.data.name);
             setPreview(response.data.image); 
             
-            // Update localStorage biar sinkron
             localStorage.setItem('user', JSON.stringify(response.data));
 
         } catch (error) {
             console.error("Gagal ambil profil", error);
-            
-            // LOGIKA PENTING: Kalau error 401/404 (Token basi), tendang keluar!
             if (error.response && (error.response.status === 401 || error.response.status === 404 || error.response.status === 403)) {
                 alert("Sesi habis, silakan login ulang.");
                 localStorage.clear();
                 navigate('/login');
             }
         } finally {
-            // APAPUN YANG TERJADI (Sukses/Error), MATIKAN LOADING!
             setLoading(false); 
         }
     };
@@ -75,7 +76,7 @@ const Profile = () => {
             });
             alert("Profil Berhasil Diupdate!");
             setPassword('');
-            getProfile(); // Refresh data biar gambar update
+            getProfile(); 
         } catch (error) {
             console.error(error);
             alert("Gagal update profil");
@@ -98,18 +99,23 @@ const Profile = () => {
         }
     };
 
-    // --- TAMPILAN SAAT LOADING ---
+    // Fungsi Copy Token
+    const handleCopyToken = () => {
+        const token = localStorage.getItem('token');
+        navigator.clipboard.writeText(token);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000); // Reset ikon copy setelah 2 detik
+    };
+
     if (loading) return (
         <div style={{textAlign:'center', marginTop:'100px', fontFamily:'sans-serif'}}>
             <h3>Memuat Data...</h3>
-            {/* Tombol Darurat kalau macet */}
             <button onClick={() => {localStorage.clear(); navigate('/login')}} style={{marginTop:'20px', color:'red', cursor:'pointer', border:'none', background:'none', textDecoration:'underline'}}>
                 Stuck? Klik di sini untuk Logout Paksa
             </button>
         </div>
     );
 
-    // Kalau user masih null setelah loading selesai (berarti error parah), jangan crash
     if (!user) return null;
 
     const isAdmin = user.role === 'admin';
@@ -126,6 +132,7 @@ const Profile = () => {
             </div>
 
             <div style={{ background: 'white', padding: '2rem', borderRadius: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+                {/* Bagian Atas: Foto */}
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                     <div style={{ position: 'relative', width: '120px', height: '120px', margin: '0 auto' }}>
                         <img 
@@ -143,6 +150,53 @@ const Profile = () => {
                         {user.role.toUpperCase()}
                     </span>
                 </div>
+
+                {/* --- API TOKEN BOX (BARU) --- */}
+                <div style={{ marginBottom: '2rem', background: '#1e293b', padding: '1rem', borderRadius: '8px', color: '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: '#94a3b8' }}>
+                            <Key size={16} /> API Access Token
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            {/* Tombol Lihat/Sembunyi */}
+                            <button 
+                                type="button" 
+                                onClick={() => setShowToken(!showToken)} 
+                                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                title={showToken ? "Sembunyikan" : "Lihat Token"}
+                            >
+                                {showToken ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                            {/* Tombol Copy */}
+                            <button 
+                                type="button" 
+                                onClick={handleCopyToken} 
+                                style={{ background: 'none', border: 'none', color: copied ? '#4ade80' : '#94a3b8', cursor: 'pointer' }}
+                                title="Copy Token"
+                            >
+                                {copied ? <Check size={18} /> : <Copy size={18} />}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {/* Tampilan Tokennya */}
+                    <div style={{ 
+                        background: '#0f172a', 
+                        padding: '10px', 
+                        borderRadius: '6px', 
+                        fontFamily: 'monospace', 
+                        fontSize: '0.85rem', 
+                        wordBreak: 'break-all',
+                        color: showToken ? '#e2e8f0' : '#475569',
+                        border: '1px solid #334155'
+                    }}>
+                        {showToken ? localStorage.getItem('token') : '••••••••••••••••••••••••••••••••••••••••'}
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '5px' }}>
+                        *Gunakan token ini untuk Login di Swagger/Postman.
+                    </p>
+                </div>
+                {/* --------------------------- */}
 
                 <form onSubmit={handleUpdate} style={{ display: 'grid', gap: '1.5rem' }}>
                     <div>
