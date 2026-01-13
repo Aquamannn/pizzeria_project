@@ -3,9 +3,7 @@ const jwt = require('jsonwebtoken');
 // 1. Cek Token
 exports.verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization']; 
-    
-    // PERBAIKAN DI SINI:
-    // Kita pisahkan string berdasarkan spasi: "Bearer" (index 0) dan "eyJ..." (index 1)
+    // pisahkan string berdasarkan spasi: "Bearer" (index 0) dan "eyJ..." (index 1)
     // Jika authHeader ada, kita ambil index ke-1.
     const token = authHeader && authHeader.split(' ')[1]; 
 
